@@ -54,9 +54,7 @@ exports.createBook = async (req, res, next) => {
     req.file.path = optimizedPath;
   }
 */
-  // Met à jour les informations de fichier dans la requête
-  req.file.filename = `${fileName}.webp`;
-  req.file.path = outputPath;
+
   const book = new Book({
     ...bookObject,
     userId: req.auth.userId,
@@ -79,6 +77,7 @@ exports.createBook = async (req, res, next) => {
 };
 
 exports.modifyBook = async (req, res, next) => {
+  console.log(req.file);
   /*
   if (req.file) {
     const optimizedPath = await optimizeImage(req.file);
@@ -195,7 +194,9 @@ const optimizeImage = async function (file) {
         );
       }
     });
-
+    // Met à jour les informations de fichier dans la requête
+    req.file.filename = `${fileName}.webp`;
+    req.file.path = outputPath;
     return outputPath; // Retourne le chemin du fichier optimisé
   } catch (error) {
     console.error("Erreur lors de l'optimisation de l'image :", error);

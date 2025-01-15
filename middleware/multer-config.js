@@ -15,7 +15,6 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, callback) => {
     const name = file.originalname.split(" ").join("_"); //remplace les espaces par des '_'
-    console.log(path.parse(name).name);
     const extension = MIME_TYPES[file.mimetype]; //récupère l'extension
     callback(null, path.parse(name).name + Date.now() + "." + extension); //path.parse(name).name enlève l'extension du fichier original
   },
@@ -56,7 +55,6 @@ const optimizeImage = async (req, res, next) => {
     // Met à jour les informations de fichier dans la requête
     req.file.filename = `${fileName}.webp`;
     req.file.path = outputPath;
-    console.log(req.file);
     next();
   } catch (error) {
     next(error);
