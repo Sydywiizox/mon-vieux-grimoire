@@ -1,7 +1,5 @@
 const Book = require("../models/Book");
 const fs = require("fs");
-const path = require("path");
-const sharp = require("sharp");
 
 exports.getAllBooks = (req, res, next) => {
   Book.find()
@@ -47,13 +45,6 @@ exports.createBook = async (req, res, next) => {
   const bookObject = JSON.parse(req.body.book);
   delete bookObject._id;
   delete bookObject._userId;
-  /*
-  if (req.file) {
-    const optimizedPath = await optimizeImage(req.file);
-    req.file.filename = path.basename(optimizedPath);
-    req.file.path = optimizedPath;
-  }
-*/
 
   const book = new Book({
     ...bookObject,
@@ -77,13 +68,6 @@ exports.createBook = async (req, res, next) => {
 };
 
 exports.modifyBook = async (req, res, next) => {
-  console.log(req.file);
-  /*
-  if (req.file) {
-    const optimizedPath = await optimizeImage(req.file);
-    req.file.filename = path.basename(optimizedPath);
-    req.file.path = optimizedPath;
-  }*/
   const bookObject = req.file
     ? {
         ...JSON.parse(req.body.book),
@@ -168,38 +152,4 @@ exports.addRating = (req, res, next) => {
     .catch((error) => {
       res.status(400).json({ error: error });
     });
-};
-
-const optimizeImage = async function (file) {
-  const filePath = file.path;
-  const fileName = path.parse(file.filename).name;
-  const outputPath = `images/${fileName}.webp`;
-
-  try {
-    // Convertir et optimiser l'image
-    await sharp(filePath)
-      .webp({ quality: 80 })
-      .resize(800, 1000, {
-        fit: "inside",
-        withoutEnlargement: true,
-      })
-      .toFile(outputPath);
-
-    // Supprimer l'image originale
-    fs.unlink(filePath, (err) => {
-      if (err) {
-        console.error(
-          "Erreur lors de la suppression du fichier original:",
-          err
-        );
-      }
-    });
-    // Met à jour les informations de fichier dans la requête
-    req.file.filename = `${fileName}.webp`;
-    req.file.path = outputPath;
-    return outputPath; // Retourne le chemin du fichier optimisé
-  } catch (error) {
-    console.error("Erreur lors de l'optimisation de l'image :", error);
-    throw error; // Remonte l'erreur pour la gestion en amont
-  }
 };
