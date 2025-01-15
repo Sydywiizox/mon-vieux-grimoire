@@ -47,10 +47,13 @@ exports.createBook = async (req, res, next) => {
   const bookObject = JSON.parse(req.body.book);
   delete bookObject._id;
   delete bookObject._userId;
-
   /*
-  optimizeImage(req.file);
-  */
+  if (req.file) {
+    const optimizedPath = await optimizeImage(req.file);
+    req.file.filename = path.basename(optimizedPath);
+    req.file.path = optimizedPath;
+  }
+*/
   // Met à jour les informations de fichier dans la requête
   req.file.filename = `${fileName}.webp`;
   req.file.path = outputPath;
@@ -75,10 +78,12 @@ exports.createBook = async (req, res, next) => {
     });
 };
 
-exports.modifyBook = (req, res, next) => {
+exports.modifyBook = async (req, res, next) => {
   /*
   if (req.file) {
-    optimizeImage(req.file);
+    const optimizedPath = await optimizeImage(req.file);
+    req.file.filename = path.basename(optimizedPath);
+    req.file.path = optimizedPath;
   }*/
   const bookObject = req.file
     ? {
@@ -171,19 +176,29 @@ const optimizeImage = async function (file) {
   const fileName = path.parse(file.filename).name;
   const outputPath = `images/${fileName}.webp`;
 
-  // Convertit et optimise l'image
-  await sharp(filePath)
-    .webp({ quality: 80 })
-    .resize(800, 1000, {
-      fit: "inside",
-      withoutEnlargement: true,
-    })
-    .toFile(outputPath);
+  try {
+    // Convertir et optimiser l'image
+    await sharp(filePath)
+      .webp({ quality: 80 })
+      .resize(800, 1000, {
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .toFile(outputPath);
 
-  console.log("Chemin complet :", filePath);
-  fs.unlink(filePath, (err) => {
-    if (err) {
-      console.error("Erreur lors de la suppression du fichier original:", err);
-    }
-  });
+    // Supprimer l'image originale
+    fs.unlink(filePath, (err) => {
+      if (err) {
+        console.error(
+          "Erreur lors de la suppression du fichier original:",
+          err
+        );
+      }
+    });
+
+    return outputPath; // Retourne le chemin du fichier optimisé
+  } catch (error) {
+    console.error("Erreur lors de l'optimisation de l'image :", error);
+    throw error; // Remonte l'erreur pour la gestion en amont
+  }
 };
