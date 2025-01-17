@@ -3,20 +3,14 @@ const sharp = require("sharp"); // Ajoutez cette ligne
 const fs = require("fs");
 const path = require("path");
 
-const MIME_TYPES = {
-  "image/jpg": "jpg",
-  "image/jpeg": "jpg",
-  "image/png": "png",
-};
-
 const storage = multer.diskStorage({
   destination: (req, file, callback) => {
     callback(null, "images");
   },
   filename: (req, file, callback) => {
     const name = file.originalname.split(" ").join("_"); //remplace les espaces par des '_'
-    const extension = MIME_TYPES[file.mimetype]; //récupère l'extension
-    callback(null, path.parse(name).name + Date.now() + "." + extension); //path.parse(name).name enlève l'extension du fichier original
+    const extension = path.parse(file.originalname).ext; //récupère l'extension
+    callback(null, path.parse(name).name + Date.now() + extension); //path.parse(name).name enlève l'extension du fichier original
   },
 });
 
@@ -24,6 +18,9 @@ const upload = multer({ storage: storage }).single("image");
 
 // Middleware d'optimisation des images
 const optimizeImage = async (req, res, next) => {
+  if (!fs.existsSync("images")) {
+    fs.mkdirSync("images");
+  }
   if (!req.file) return next();
 
   try {
@@ -62,4 +59,11 @@ const optimizeImage = async (req, res, next) => {
   }
 };
 
-module.exports = { upload, optimizeImage };
+const createFolderImages = (req, res, next) => {
+  if (!fs.existsSync("images")) {
+    fs.mkdirSync("images");
+  }
+  next();
+};
+
+module.exports = { upload, optimizeImage, createFolderImages };
