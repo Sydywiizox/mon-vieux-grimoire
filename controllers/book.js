@@ -68,6 +68,8 @@ exports.createBook = async (req, res, next) => {
 };
 
 exports.modifyBook = async (req, res, next) => {
+  // Vérifier si un fichier a été inclus dans la requête
+  console.log("REQ FILE :", req.file);
   const bookObject = req.file
     ? {
         ...JSON.parse(req.body.book),
@@ -76,22 +78,36 @@ exports.modifyBook = async (req, res, next) => {
         }`,
       }
     : { ...req.body };
+
+  // Supprimer l'utilisateur pour éviter toute modification non autorisée
   delete bookObject._userId;
+
   Book.findOne({ _id: req.params.id })
     .then((book) => {
       if (book.userId != req.auth.userId) {
-        res.status(401).json({ message: "Not authorized" });
-      } else {
+        return res.status(401).json({ message: "Not authorized" });
+      }
+
+      // Si un nouveau fichier est fourni, supprimer l'ancien fichier
+      if (req.file) {
+        console.log("IF REQ FILE :", req.file);
         const filename = book.imageUrl.split("/images/")[1];
-        fs.unlink(`images/${filename}`, () => {
-          Book.updateOne(
-            { _id: req.params.id },
-            { ...bookObject, _id: req.params.id }
-          )
-            .then(() => res.status(200).json({ message: "Objet modifié!" }))
-            .catch((error) => res.status(401).json({ error }));
+        fs.unlink(`images/${filename}`, (err) => {
+          if (err) {
+            console.error("Erreur lors de la suppression du fichier :", err);
+          } else {
+            console.log("Ancien fichier supprimé :", `images/${filename}`);
+          }
         });
       }
+
+      // Mettre à jour l'objet dans la base de données
+      Book.updateOne(
+        { _id: req.params.id },
+        { ...bookObject, _id: req.params.id }
+      )
+        .then(() => res.status(200).json({ message: "Objet modifié!" }))
+        .catch((error) => res.status(400).json({ error }));
     })
     .catch((error) => {
       res.status(400).json({ error });

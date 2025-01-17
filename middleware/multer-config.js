@@ -41,6 +41,7 @@ const optimizeImage = async (req, res, next) => {
       .toFile(outputPath);
 
     console.log("Chemin complet :", filePath);
+    console.log(fs.existsSync(filePath));
     fs.unlink(filePath, (err) => {
       if (err) {
         console.error(
