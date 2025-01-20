@@ -49,15 +49,11 @@ const uploadAndOptimizeImage = (req, res, next) => {
         })
         .toFile(outputPath);
 
-      // Supprime le fichier original
       fs.unlink(filePath, (err) => {
         if (err) {
-          console.error(
-            "Erreur lors de la suppression du fichier original:",
-            err
-          );
+          console.error("Erreur lors de la suppression du fichier :", err);
         } else {
-          console.log("Fichier supprimé avec succès");
+          console.log("Ancien fichier supprimé :", filePath);
         }
       });
 

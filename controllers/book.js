@@ -1,6 +1,7 @@
 const Book = require("../models/Book");
 const fs = require("fs");
 
+// GET /api/books
 exports.getAllBooks = (req, res, next) => {
   Book.find()
     .then((books) => {
@@ -13,6 +14,7 @@ exports.getAllBooks = (req, res, next) => {
     });
 };
 
+// GET /api/books/:id
 exports.getOneBook = (req, res, next) => {
   Book.findOne({
     _id: req.params.id,
@@ -27,13 +29,15 @@ exports.getOneBook = (req, res, next) => {
     });
 };
 
+// GET /api/books/bestrating
 exports.getBestRatedBooks = (req, res, next) => {
   Book.find()
-    .sort({ averageRating: -1 }) // Trie par la note moyenne
+    .sort({ averageRating: -1 })
     .limit(3)
     .then((books) => {
       res.status(200).json(books);
     })
+
     .catch((error) => {
       res.status(400).json({
         error: error,
@@ -41,6 +45,7 @@ exports.getBestRatedBooks = (req, res, next) => {
     });
 };
 
+// POST /api/books
 exports.createBook = async (req, res, next) => {
   const bookObject = JSON.parse(req.body.book);
   delete bookObject._id;
@@ -57,7 +62,7 @@ exports.createBook = async (req, res, next) => {
     .save()
     .then(() => {
       res.status(201).json({
-        message: "Post saved successfully!",
+        message: "Livre créé avec succes!",
       });
     })
     .catch((error) => {
@@ -67,9 +72,9 @@ exports.createBook = async (req, res, next) => {
     });
 };
 
+// PUT /api/books/:id
 exports.modifyBook = async (req, res, next) => {
   // Vérifier si un fichier a été inclus dans la requête
-  console.log("REQ FILE :", req.file);
   const bookObject = req.file
     ? {
         ...JSON.parse(req.body.book),
@@ -85,12 +90,11 @@ exports.modifyBook = async (req, res, next) => {
   Book.findOne({ _id: req.params.id })
     .then((book) => {
       if (book.userId != req.auth.userId) {
-        return res.status(401).json({ message: "Not authorized" });
+        return res.status(401).json({ message: "Non autorisé" });
       }
 
       // Si un nouveau fichier est fourni, supprimer l'ancien fichier
       if (req.file) {
-        console.log("IF REQ FILE :", req.file);
         const filename = book.imageUrl.split("/images/")[1];
         fs.unlink(`images/${filename}`, (err) => {
           if (err) {
@@ -106,7 +110,7 @@ exports.modifyBook = async (req, res, next) => {
         { _id: req.params.id },
         { ...bookObject, _id: req.params.id }
       )
-        .then(() => res.status(200).json({ message: "Objet modifié!" }))
+        .then(() => res.status(200).json({ message: "Livre modifié !" }))
         .catch((error) => res.status(400).json({ error }));
     })
     .catch((error) => {
@@ -114,17 +118,18 @@ exports.modifyBook = async (req, res, next) => {
     });
 };
 
+// DELETE /api/books/:id
 exports.deleteBook = (req, res, next) => {
   Book.findOne({ _id: req.params.id })
     .then((book) => {
       if (book.userId != req.auth.userId) {
-        res.status(401).json({ message: "Not authorized" });
+        res.status(401).json({ message: "Non autorisé" });
       } else {
         const filename = book.imageUrl.split("/images/")[1];
         fs.unlink(`images/${filename}`, () => {
           Book.deleteOne({ _id: req.params.id })
             .then(() => {
-              res.status(200).json({ message: "Objet supprimé !" });
+              res.status(200).json({ message: "Livre supprimé !" });
             })
             .catch((error) => res.status(401).json({ error }));
         });
@@ -135,6 +140,7 @@ exports.deleteBook = (req, res, next) => {
     });
 };
 
+// POST /api/books/:id/rating
 exports.addRating = (req, res, next) => {
   const userId = req.auth.userId;
   const grade = req.body.rating;
@@ -142,7 +148,7 @@ exports.addRating = (req, res, next) => {
   Book.findOne({ _id: bookId })
     .then((book) => {
       if (!book) {
-        return res.status(404).json({ error: "Book not found" });
+        return res.status(404).json({ error: "Livre non trouvé" });
       }
 
       const existingRating = book.ratings.find(
@@ -151,7 +157,7 @@ exports.addRating = (req, res, next) => {
       if (existingRating) {
         return res
           .status(400)
-          .json({ error: "User has already rated this book" });
+          .json({ error: "Cet utilisateur a deja note ce livre" });
       }
 
       const newRating = {
