@@ -1,4 +1,4 @@
-Télécharger le front : https://github.com/OpenClassrooms-Student-Center/P7-Dev-Web-livres et lancez le avec npm start
+Télécharger le front : https://github.com/OpenClassrooms-Student-Center/P7-Dev-Web-livres et le lancer avec npm start
 Lancer le backend avec nodemon ./server.js
 
 Créer un fichier .env avec :
