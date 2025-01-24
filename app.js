@@ -4,12 +4,11 @@ const app = express();
 const bookRoutes = require("./routes/book");
 const userRoutes = require("./routes/user");
 const path = require("path");
+require("dotenv").config();
 
 // Connexion à la base de données MongoDB
 mongoose
-  .connect(
-    "mongodb+srv://admin:admin@cluster0.mhacx.mongodb.net/projet6?retryWrites=true&w=majority&appName=Cluster0"
-  )
+  .connect(process.env.MONGO_URI)
   .then(() => console.log("Connexion à MongoDB réussie !"))
   .catch(() => console.log("Connexion à MongoDB échouée !"));
 
