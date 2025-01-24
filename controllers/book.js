@@ -9,7 +9,8 @@ exports.getAllBooks = (req, res, next) => {
     })
     .catch((error) => {
       res.status(400).json({
-        error: error,
+        error: "Une erreur est survenue lors de la récupération des livres",
+        error,
       });
     });
 };
@@ -20,11 +21,17 @@ exports.getOneBook = (req, res, next) => {
     _id: req.params.id,
   })
     .then((book) => {
+      if (!book) {
+        return res.status(404).json({ message: "Livre non trouvé" });
+      }
       res.status(200).json(book);
     })
     .catch((error) => {
       res.status(404).json({
-        error: error,
+        error:
+          "Une erreur est survenue lors de la récupération du livre " +
+          req.params.id,
+        error,
       });
     });
 };
@@ -40,40 +47,47 @@ exports.getBestRatedBooks = (req, res, next) => {
 
     .catch((error) => {
       res.status(400).json({
-        error: error,
+        error:
+          "Une erreur est survenue lors de la récupération des livres les mieux notés",
+        error,
       });
     });
 };
 
 // POST /api/books
 exports.createBook = async (req, res, next) => {
-  const bookObject = JSON.parse(req.body.book);
-  delete bookObject._id;
-  delete bookObject._userId;
+  // Vérifier si l'utilisateur est authentifié
+  if (!req.auth || !req.auth.userId) {
+    return res.status(401).json({ error: "Authentification requise" });
+  }
 
-  const book = new Book({
-    ...bookObject,
-    userId: req.auth.userId,
-    imageUrl: `${req.protocol}://${req.get("host")}/images/${
-      req.file.filename
-    }`,
-  });
-  book
-    .save()
-    .then(() => {
-      res.status(201).json({
-        message: "Livre créé avec succes!",
-      });
-    })
-    .catch((error) => {
-      res.status(400).json({
-        error: error,
-      });
+  try {
+    const bookObject = JSON.parse(req.body.book);
+    delete bookObject._id;
+    delete bookObject._userId; // Supprimer tout userId malveillant
+
+    const book = new Book({
+      ...bookObject,
+      userId: req.auth.userId, // Associer le livre à l'utilisateur authentifié
+      imageUrl: `${req.protocol}://${req.get("host")}/images/${
+        req.file.filename
+      }`,
     });
+
+    await book.save();
+    res.status(201).json({ message: "Livre créé avec succès !" });
+  } catch (error) {
+    res.status(400).json({ error: "Erreur lors de la création du livre" });
+  }
 };
 
 // PUT /api/books/:id
 exports.modifyBook = async (req, res, next) => {
+  // Vérifier si l'utilisateur est authentifié
+  if (!req.auth || !req.auth.userId) {
+    return res.status(401).json({ error: "Authentification requise" });
+  }
+
   // Vérifier si un fichier a été inclus dans la requête
   const bookObject = req.file
     ? {
@@ -89,6 +103,9 @@ exports.modifyBook = async (req, res, next) => {
 
   Book.findOne({ _id: req.params.id })
     .then((book) => {
+      if (!book) {
+        return res.status(404).json({ message: "Livre non trouvé" });
+      }
       if (book.userId != req.auth.userId) {
         return res.status(401).json({ message: "Non autorisé" });
       }
@@ -122,6 +139,9 @@ exports.modifyBook = async (req, res, next) => {
 exports.deleteBook = (req, res, next) => {
   Book.findOne({ _id: req.params.id })
     .then((book) => {
+      if (!book) {
+        return res.status(404).json({ message: "Livre non trouvé" });
+      }
       if (book.userId != req.auth.userId) {
         res.status(401).json({ message: "Non autorisé" });
       } else {
@@ -144,6 +164,11 @@ exports.deleteBook = (req, res, next) => {
 exports.addRating = (req, res, next) => {
   const userId = req.auth.userId;
   const grade = req.body.rating;
+  if (typeof grade !== "number" || grade < 0 || grade > 5) {
+    return res
+      .status(400)
+      .json({ error: "La note doit être comprise entre 0 et 5" });
+  }
   const bookId = req.params.id;
   Book.findOne({ _id: bookId })
     .then((book) => {
@@ -172,6 +197,9 @@ exports.addRating = (req, res, next) => {
       res.status(200).json(updatedBook);
     })
     .catch((error) => {
-      res.status(400).json({ error: error });
+      res.status(400).json({
+        error: "Une erreur est survenue lors de l'ajout de la note",
+        error,
+      });
     });
 };

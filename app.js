@@ -5,6 +5,7 @@ const bookRoutes = require("./routes/book");
 const userRoutes = require("./routes/user");
 const path = require("path");
 
+// Connexion à la base de données MongoDB
 mongoose
   .connect(
     "mongodb+srv://admin:admin@cluster0.mhacx.mongodb.net/projet6?retryWrites=true&w=majority&appName=Cluster0"
@@ -12,8 +13,9 @@ mongoose
   .then(() => console.log("Connexion à MongoDB réussie !"))
   .catch(() => console.log("Connexion à MongoDB échouée !"));
 
-app.use(express.json());
+app.use(express.json()); //parser les requêtes en json
 
+// Configuration des headers pour éviter les erreurs de CORS
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader(
@@ -27,8 +29,11 @@ app.use((req, res, next) => {
   next();
 });
 
+// Déclaration des routes
 app.use("/api/books", bookRoutes);
 app.use("/api/auth", userRoutes);
+
+// Gestion des images
 app.use("/images", express.static(path.join(__dirname, "images")));
 
 module.exports = app;

@@ -14,7 +14,14 @@ exports.signup = (req, res, next) => {
       user
         .save()
         .then(() => res.status(201).json({ message: "Utilisateur créé !" }))
-        .catch((error) => res.status(400).json({ error }));
+        .catch((error) => {
+          // Gestion explicite pour les emails en double
+          if (error.code === 11000) {
+            res.status(400).json({ error: "Email déjà utilisé !" });
+          } else {
+            res.status(500).json({ error }); // Autres erreurs
+          }
+        });
     })
     .catch((error) => res.status(500).json({ error }));
 };
