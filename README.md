@@ -1,16 +1,5 @@
-# Mon vieux Grimoire
-
-## Comment lancer le projet ?
-
-### Avec npm
-
-Faites la commande `npm install` pour installer les dépendances puis `npm start` pour lancer le projet.
-
-Le projet a été testé sur node 19.
-
----
-
-
+Télécharger le front : https://github.com/OpenClassrooms-Student-Center/P7-Dev-Web-livres et lancez le avec npm start
+Lancer le backend avec nodemon ./server.js
 
 Créer un fichier .env avec :
 
