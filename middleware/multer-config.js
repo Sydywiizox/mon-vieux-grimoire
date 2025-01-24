@@ -48,8 +48,7 @@ const uploadAndOptimizeImage = (req, res, next) => {
           withoutEnlargement: true,
         })
         .toFile(outputPath);
-      console.log(filePath);
-      //filePath.split("\")
+
       fs.unlink(filePath, (err) => {
         if (err) {
           console.error("Erreur lors de la suppression du fichier :", err);
