@@ -138,6 +138,9 @@ exports.modifyBook = async (req, res, next) => {
 
 // DELETE /api/books/:id
 exports.deleteBook = (req, res, next) => {
+  if (!req.auth || !req.auth.userId) {
+    return res.status(401).json({ error: "Authentification requise" });
+  }
   Book.findOne({ _id: req.params.id })
     .then((book) => {
       if (!book) {
@@ -163,6 +166,9 @@ exports.deleteBook = (req, res, next) => {
 
 // POST /api/books/:id/rating
 exports.addRating = (req, res, next) => {
+  if (!req.auth || !req.auth.userId) {
+    return res.status(401).json({ error: "Authentification requise" });
+  }
   const userId = req.auth.userId;
   const grade = req.body.rating;
   if (typeof grade !== "number" || grade < 0 || grade > 5) {
