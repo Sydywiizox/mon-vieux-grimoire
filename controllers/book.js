@@ -39,7 +39,7 @@ exports.getOneBook = (req, res, next) => {
 // GET /api/books/bestrating
 exports.getBestRatedBooks = (req, res, next) => {
   Book.find()
-    .sort({ averageRating: -1 })
+    .sort({ averageRating: -1 }) //ordre décroissant
     .limit(3)
     .then((books) => {
       res.status(200).json(books);
@@ -63,7 +63,7 @@ exports.createBook = async (req, res, next) => {
 
   try {
     const bookObject = JSON.parse(req.body.book);
-    delete bookObject._id;
+    delete bookObject._id; // Supprimer tout id malveillant
     delete bookObject._userId; // Supprimer tout userId malveillant
 
     const book = new Book({
@@ -98,8 +98,9 @@ exports.modifyBook = async (req, res, next) => {
       }
     : { ...req.body };
 
-  // Supprimer l'utilisateur pour éviter toute modification non autorisée
+  // Supprimer les champs sensibles pour éviter des manipulations
   delete bookObject._userId;
+  delete bookObject._id;
 
   Book.findOne({ _id: req.params.id })
     .then((book) => {
