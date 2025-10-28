@@ -32,7 +32,7 @@ app.use((req, res, next) => {
 app.use("/api/books", bookRoutes);
 app.use("/api/auth", userRoutes);
 
-// Gestion des images
-app.use("/images", express.static(path.join(__dirname, "images")));
+// Gestion des images (maintenant gérées par Cloudinary)
+// app.use("/images", express.static(path.join(__dirname, "images")));
 
 module.exports = app;

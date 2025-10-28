@@ -1,5 +1,5 @@
 const Book = require("../models/Book");
-const fs = require("fs");
+const cloudinary = require("../config/cloudinary");
 
 // GET /api/books
 exports.getAllBooks = (req, res, next) => {
@@ -62,6 +62,11 @@ exports.createBook = async (req, res, next) => {
   }
 
   try {
+    // Vérifier si un fichier a été uploadé
+    if (!req.file) {
+      return res.status(400).json({ error: "Image requise" });
+    }
+
     const bookObject = JSON.parse(req.body.book);
     delete bookObject._id; // Supprimer tout id malveillant
     delete bookObject._userId; // Supprimer tout userId malveillant
@@ -69,15 +74,16 @@ exports.createBook = async (req, res, next) => {
     const book = new Book({
       ...bookObject,
       userId: req.auth.userId, // Associer le livre à l'utilisateur authentifié
-      imageUrl: `${req.protocol}://${req.get("host")}/images/${
-        req.file.filename
-      }`,
+      imageUrl: req.file.path, // URL Cloudinary déjà disponible
     });
 
     await book.save();
     res.status(201).json({ message: "Livre créé avec succès !" });
   } catch (error) {
-    res.status(400).json({ error: "Erreur lors de la création du livre" });
+    console.error("Erreur lors de la création du livre:", error);
+    res
+      .status(400)
+      .json({ error: "Erreur lors de la création du livre: " + error.message });
   }
 };
 
@@ -92,9 +98,7 @@ exports.modifyBook = async (req, res, next) => {
   const bookObject = req.file
     ? {
         ...JSON.parse(req.body.book),
-        imageUrl: `${req.protocol}://${req.get("host")}/images/${
-          req.file.filename
-        }`,
+        imageUrl: req.file.path, // URL Cloudinary déjà disponible
       }
     : { ...req.body };
 
@@ -111,16 +115,30 @@ exports.modifyBook = async (req, res, next) => {
         return res.status(401).json({ message: "Non autorisé" });
       }
 
-      // Si un nouveau fichier est fourni, supprimer l'ancien fichier
-      if (req.file) {
-        const filename = book.imageUrl.split("/images/")[1];
-        fs.unlink(`images/${filename}`, (err) => {
-          if (err) {
-            console.error("Erreur lors de la suppression du fichier :", err);
-          } else {
-            console.log("Ancien fichier supprimé :", `images/${filename}`);
+      // Si un nouveau fichier est fourni, supprimer l'ancien fichier de Cloudinary
+      if (req.file && book.imageUrl) {
+        try {
+          // Extraire le public_id de l'URL Cloudinary
+          const urlParts = book.imageUrl.split("/upload/");
+          if (urlParts.length === 2) {
+            const publicId = urlParts[1].split(".")[0]; // Enlève l'extension
+            cloudinary.uploader.destroy(publicId, (error, result) => {
+              if (error) {
+                console.error(
+                  "Erreur lors de la suppression de l'image Cloudinary:",
+                  error
+                );
+              } else {
+                console.log(
+                  "Ancienne image supprimée de Cloudinary:",
+                  publicId
+                );
+              }
+            });
           }
-        });
+        } catch (error) {
+          console.error("Erreur lors de l'extraction du public_id:", error);
+        }
       }
 
       // Mettre à jour l'objet dans la base de données
@@ -149,14 +167,35 @@ exports.deleteBook = (req, res, next) => {
       if (book.userId != req.auth.userId) {
         res.status(401).json({ message: "Non autorisé" });
       } else {
-        const filename = book.imageUrl.split("/images/")[1];
-        fs.unlink(`images/${filename}`, () => {
-          Book.deleteOne({ _id: req.params.id })
-            .then(() => {
-              res.status(200).json({ message: "Livre supprimé !" });
-            })
-            .catch((error) => res.status(401).json({ error }));
-        });
+        // Supprimer l'image de Cloudinary
+        if (book.imageUrl) {
+          try {
+            // Extraire le public_id de l'URL Cloudinary
+            const urlParts = book.imageUrl.split("/upload/");
+            if (urlParts.length === 2) {
+              const publicId = urlParts[1].split(".")[0]; // Enlève l'extension
+              cloudinary.uploader.destroy(publicId, (error, result) => {
+                if (error) {
+                  console.error(
+                    "Erreur lors de la suppression de l'image Cloudinary:",
+                    error
+                  );
+                } else {
+                  console.log("Image supprimée de Cloudinary:", publicId);
+                }
+              });
+            }
+          } catch (error) {
+            console.error("Erreur lors de l'extraction du public_id:", error);
+          }
+        }
+
+        // Supprimer le livre de la base de données
+        Book.deleteOne({ _id: req.params.id })
+          .then(() => {
+            res.status(200).json({ message: "Livre supprimé !" });
+          })
+          .catch((error) => res.status(401).json({ error }));
       }
     })
     .catch((error) => {

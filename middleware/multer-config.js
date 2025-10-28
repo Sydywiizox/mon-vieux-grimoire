@@ -1,73 +1,66 @@
 const multer = require("multer");
-const sharp = require("sharp");
-const fs = require("fs");
 const path = require("path");
+const cloudinary = require("../config/cloudinary");
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
 
-// Vérifie et crée le dossier "images" si nécessaire
-const ensureImagesFolderExists = () => {
-  if (!fs.existsSync("images")) {
-    fs.mkdirSync("images");
+// Filtrer uniquement les images
+const fileFilter = (req, file, cb) => {
+  const allowedTypes = /jpeg|jpg|png|webp/;
+  const extname = allowedTypes.test(
+    path.extname(file.originalname).toLowerCase()
+  );
+  const mimetype = allowedTypes.test(file.mimetype);
+
+  if (mimetype && extname) {
+    return cb(null, true);
+  } else {
+    cb(new Error("Seules les images (JPEG, PNG, WebP) sont autorisées !"));
   }
 };
 
-// Configuration du stockage Multer
-const storage = multer.diskStorage({
-  destination: (req, file, callback) => {
-    ensureImagesFolderExists(); // Assure que le dossier existe
-    callback(null, "images");
-  },
-  filename: (req, file, callback) => {
-    const name = path.parse(file.originalname.split(" ").join("_")).name; // Remplace les espaces par des '_'
-    const extension = path.parse(file.originalname).ext; // Récupère l'extension
-    callback(null, name + Date.now() + extension); // Génère un nom unique
+// Configuration du stockage Cloudinary
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: async (req, file) => {
+    const name = path.parse(file.originalname.split(" ").join("_")).name;
+    return {
+      public_id: `book-covers/${name}${Date.now()}`,
+      format: "webp",
+      transformation: [
+        {
+          width: 800,
+          height: 1000,
+          crop: "limit",
+          quality: 80,
+        },
+      ],
+    };
   },
 });
 
 const uploadAndOptimizeImage = (req, res, next) => {
-  const upload = multer({ storage: storage }).single("image");
+  const upload = multer({
+    storage: storage,
+    fileFilter: fileFilter,
+  }).single("image");
 
   upload(req, res, async (err) => {
     if (err) {
-      return next(err);
+      console.error("Erreur Multer/Cloudinary:", err);
+      return res.status(400).json({
+        error: "Erreur lors de l'upload de l'image",
+        details: err.message,
+      });
     }
 
     if (!req.file) {
+      console.log("Aucun fichier reçu");
       return next();
     }
 
-    try {
-      const filePath = req.file.path;
-      const fileName = path.parse(req.file.filename).name;
-      const outputPath = `images/${fileName}.webp`;
-
-      // Convertit et optimise l'image
-      await sharp(filePath)
-        .webp({ quality: 80 })
-        .resize(800, 1000, {
-          fit: "inside",
-          withoutEnlargement: true,
-        })
-        .toFile(outputPath);
-
-      fs.unlink(filePath, (err) => {
-        if (err) {
-          console.error("Erreur lors de la suppression du fichier :", err);
-        } else {
-          console.log("Fichier original supprimé :", filePath);
-        }
-      });
-
-      // Met à jour les informations de fichier dans la requête
-      req.file.filename = `${fileName}.webp`;
-      req.file.path = outputPath;
-      next();
-    } catch (error) {
-      console.error("Erreur : Echec de traitement de l'image", error);
-      return res.status(500).json({
-        message: "Erreur : Echec de traitement de l'image",
-        error: error.message,
-      });
-    }
+    console.log("Fichier uploadé avec succès sur Cloudinary:", req.file.path);
+    // L'URL de l'image est déjà disponible dans req.file.path (Cloudinary)
+    next();
   });
 };
 
