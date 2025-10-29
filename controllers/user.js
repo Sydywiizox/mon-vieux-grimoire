@@ -4,28 +4,35 @@ const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
 // POST /api/auth/signup
-exports.signup = (req, res, next) => {
-  bcrypt
-    .hash(req.body.password, 10)
-    .then((hash) => {
-      const user = new User({
-        email: req.body.email,
-        password: hash,
-      });
-      user
-        .save()
-        .then(() => res.status(201).json({ message: "Utilisateur créé !" }))
-        .catch((error) => {
-          // Gestion explicite pour les emails en double
-          console.log(error);
-          if (error.code === 11000) {
-            res.status(400).json({ error: "Email déjà utilisé !" });
-          } else {
-            res.status(500).json({ error }); // Autres erreurs
-          }
-        });
-    })
-    .catch((error) => res.status(500).json({ error }));
+exports.signup = async (req, res) => {
+  try {
+    const hash = await bcrypt.hash(req.body.password, 10);
+    const user = new User({
+      email: req.body.email,
+      password: hash,
+    });
+
+    await user.save();
+    res.status(201).json({ message: "Utilisateur créé !" });
+  } catch (error) {
+    console.error(error);
+
+    // Cas 1 — doublon MongoDB (index unique)
+    if (error.code === 11000) {
+      return res.status(400).json({ error: "Email déjà utilisé !" });
+    }
+
+    // Cas 2 — validation Mongoose (unique non respecté)
+    if (error.name === "ValidationError") {
+      const emailError = error.errors?.email;
+      if (emailError && emailError.kind === "unique") {
+        return res.status(400).json({ error: "Email déjà utilisé !" });
+      }
+    }
+
+    // Cas 3 — autre erreur
+    return res.status(500).json({ error: "Erreur serveur" });
+  }
 };
 
 // POST /api/auth/login
