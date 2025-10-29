@@ -89,69 +89,58 @@ exports.createBook = async (req, res, next) => {
 
 // PUT /api/books/:id
 exports.modifyBook = async (req, res, next) => {
-  // Vérifier si l'utilisateur est authentifié
-  if (!req.auth || !req.auth.userId) {
-    return res.status(401).json({ error: "Authentification requise" });
-  }
+  try {
+    // Vérifier l'authentification
+    if (!req.auth || !req.auth.userId) {
+      return res.status(401).json({ error: "Authentification requise" });
+    }
 
-  // Vérifier si un fichier a été inclus dans la requête
-  const bookObject = req.file
-    ? {
-        ...JSON.parse(req.body.book),
-        imageUrl: req.file.path, // URL Cloudinary déjà disponible
-      }
-    : { ...req.body };
+    // Trouver le livre
+    const book = await Book.findOne({ _id: req.params.id });
+    if (!book) {
+      return res.status(404).json({ message: "Livre non trouvé" });
+    }
 
-  // Supprimer les champs sensibles pour éviter des manipulations
-  delete bookObject._userId;
-  delete bookObject._id;
+    // Vérifier la propriété
+    if (book.userId !== req.auth.userId) {
+      return res.status(403).json({ message: "Non autorisé" });
+    }
 
-  Book.findOne({ _id: req.params.id })
-    .then((book) => {
-      if (!book) {
-        return res.status(404).json({ message: "Livre non trouvé" });
-      }
-      if (book.userId != req.auth.userId) {
-        return res.status(401).json({ message: "Non autorisé" });
-      }
-
-      // Si un nouveau fichier est fourni, supprimer l'ancien fichier de Cloudinary
-      if (req.file && book.imageUrl) {
-        try {
-          // Extraire le public_id de l'URL Cloudinary
-          const urlParts = book.imageUrl.split("/upload/");
-          if (urlParts.length === 2) {
-            const publicId = urlParts[1].split(".")[0]; // Enlève l'extension
-            cloudinary.uploader.destroy(publicId, (error, result) => {
-              if (error) {
-                console.error(
-                  "Erreur lors de la suppression de l'image Cloudinary:",
-                  error
-                );
-              } else {
-                console.log(
-                  "Ancienne image supprimée de Cloudinary:",
-                  publicId
-                );
-              }
-            });
+    // Si nouvelle image : supprimer l’ancienne sur Cloudinary
+    if (req.file && book.imageUrl) {
+      try {
+        const match = book.imageUrl.match(
+          /\/upload\/(?:v\d+\/)?(.+)\.[a-zA-Z]+$/
+        );
+        if (match) {
+          const publicId = match[1];
+          const result = await cloudinary.uploader.destroy(publicId);
+          if (result.result === "ok") {
+            console.log("✅ Ancienne image supprimée:", publicId);
+          } else {
+            console.warn("⚠️ Image non trouvée sur Cloudinary:", publicId);
           }
-        } catch (error) {
-          console.error("Erreur lors de l'extraction du public_id:", error);
         }
+      } catch (err) {
+        console.error("Erreur lors de la suppression Cloudinary:", err);
       }
+    }
 
-      // Mettre à jour l'objet dans la base de données
-      Book.updateOne(
-        { _id: req.params.id },
-        { ...bookObject, _id: req.params.id }
-      )
-        .then(() => res.status(200).json({ message: "Livre modifié !" }))
-        .catch((error) => res.status(400).json({ error }));
-    })
-    .catch((error) => {
-      res.status(400).json({ error });
-    });
+    // Construction de l’objet à mettre à jour
+    const bookObject = req.file
+      ? { ...JSON.parse(req.body.book), imageUrl: req.file.path }
+      : { ...req.body };
+
+    delete bookObject._id;
+    delete bookObject._userId;
+
+    // Mise à jour en base
+    await Book.updateOne({ _id: req.params.id }, { ...bookObject });
+    res.status(200).json({ message: "Livre modifié avec succès !" });
+  } catch (error) {
+    console.error("Erreur modifyBook:", error);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
 };
 
 // DELETE /api/books/:id
@@ -255,77 +244,82 @@ exports.addRating = (req, res, next) => {
 };
 
 // PUT /api/books/:id/rating
-exports.updateRating = (req, res, next) => {
-  if (!req.auth || !req.auth.userId) {
-    return res.status(401).json({ error: "Authentification requise" });
-  }
-  const userId = req.auth.userId;
-  const grade = req.body.rating;
-  if (typeof grade !== "number" || grade < 0 || grade > 5) {
-    return res
-      .status(400)
-      .json({ error: "La note doit être comprise entre 0 et 5" });
-  }
-  const bookId = req.params.id;
-  Book.findOne({ _id: bookId })
-    .then((book) => {
-      if (!book) {
-        return res.status(404).json({ error: "Livre non trouvé" });
-      }
+exports.updateRating = async (req, res) => {
+  try {
+    if (!req.auth || !req.auth.userId) {
+      return res.status(401).json({ error: "Authentification requise" });
+    }
 
-      const existingRating = book.ratings.find(
-        (rating) => rating.userId === userId
-      );
-      if (!existingRating) {
-        return res
-          .status(404)
-          .json({ error: "Aucune note existante pour cet utilisateur" });
-      }
+    const { rating } = req.body;
+    if (typeof rating !== "number" || rating < 0 || rating > 5) {
+      return res
+        .status(400)
+        .json({ error: "La note doit être comprise entre 0 et 5" });
+    }
 
-      existingRating.grade = grade;
-      return book.save();
-    })
-    .then((updatedBook) => {
-      res.status(200).json(updatedBook);
-    })
-    .catch((error) => {
-      res.status(400).json({
-        error: "Une erreur est survenue lors de la mise à jour de la note",
-        error,
-      });
-    });
+    const book = await Book.findOne({ _id: req.params.id });
+    if (!book) {
+      return res.status(404).json({ error: "Livre non trouvé" });
+    }
+
+    // Vérifier qu'un utilisateur ne peut modifier que sa propre note
+    const existingRating = book.ratings.find(
+      (r) => r.userId === req.auth.userId
+    );
+    if (!existingRating) {
+      return res
+        .status(404)
+        .json({ error: "Aucune note existante pour cet utilisateur" });
+    }
+
+    // Mise à jour de la note
+    existingRating.grade = rating;
+
+    // Recalcul de la moyenne
+    const sum = book.ratings.reduce((acc, r) => acc + r.grade, 0);
+    book.averageRating = (sum / book.ratings.length).toFixed(1);
+
+    await book.save();
+    res.status(200).json(book);
+  } catch (error) {
+    console.error("Erreur updateRating:", error);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
 };
 
 // DELETE /api/books/:id/rating
-exports.deleteRating = (req, res, next) => {
-  if (!req.auth || !req.auth.userId) {
-    return res.status(401).json({ error: "Authentification requise" });
+exports.deleteRating = async (req, res) => {
+  try {
+    if (!req.auth || !req.auth.userId) {
+      return res.status(401).json({ error: "Authentification requise" });
+    }
+
+    const book = await Book.findOne({ _id: req.params.id });
+    if (!book) {
+      return res.status(404).json({ error: "Livre non trouvé" });
+    }
+
+    // Vérifier que la note existe pour cet utilisateur
+    const hasRating = book.ratings.some((r) => r.userId === req.auth.userId);
+    if (!hasRating) {
+      return res
+        .status(404)
+        .json({ error: "Aucune note à supprimer pour cet utilisateur" });
+    }
+
+    // Supprimer la note
+    book.ratings = book.ratings.filter((r) => r.userId !== req.auth.userId);
+
+    // Recalcul de la moyenne
+    const sum = book.ratings.reduce((acc, r) => acc + r.grade, 0);
+    book.averageRating = book.ratings.length
+      ? (sum / book.ratings.length).toFixed(1)
+      : 0;
+
+    await book.save();
+    res.status(200).json(book);
+  } catch (error) {
+    console.error("Erreur deleteRating:", error);
+    res.status(500).json({ error: "Erreur serveur" });
   }
-  const userId = req.auth.userId;
-  const bookId = req.params.id;
-  Book.findOne({ _id: bookId })
-    .then((book) => {
-      if (!book) {
-        return res.status(404).json({ error: "Livre non trouvé" });
-      }
-
-      const beforeCount = book.ratings.length;
-      book.ratings = book.ratings.filter((r) => r.userId !== userId);
-      if (book.ratings.length === beforeCount) {
-        return res
-          .status(404)
-          .json({ error: "Aucune note à supprimer pour cet utilisateur" });
-      }
-
-      return book.save();
-    })
-    .then((updatedBook) => {
-      res.status(200).json(updatedBook);
-    })
-    .catch((error) => {
-      res.status(400).json({
-        error: "Une erreur est survenue lors de la suppression de la note",
-        error,
-      });
-    });
 };
