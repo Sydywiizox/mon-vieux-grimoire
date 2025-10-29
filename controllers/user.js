@@ -15,8 +15,6 @@ exports.signup = async (req, res) => {
     await user.save();
     res.status(201).json({ message: "Utilisateur créé !" });
   } catch (error) {
-    console.error(error);
-
     // Cas 1 — doublon MongoDB (index unique)
     if (error.code === 11000) {
       return res.status(400).json({ error: "Email déjà utilisé !" });
