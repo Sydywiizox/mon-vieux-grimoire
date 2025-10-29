@@ -11,5 +11,7 @@ router.post("/", auth, uploadAndOptimizeImage, booksCtrl.createBook);
 router.put("/:id", auth, uploadAndOptimizeImage, booksCtrl.modifyBook);
 router.delete("/:id", auth, booksCtrl.deleteBook);
 router.post("/:id/rating", auth, booksCtrl.addRating);
+router.put("/:id/rating", auth, booksCtrl.updateRating);
+router.delete("/:id/rating", auth, booksCtrl.deleteRating);
 
 module.exports = router;

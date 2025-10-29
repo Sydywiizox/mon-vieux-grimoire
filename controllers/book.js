@@ -249,3 +249,79 @@ exports.addRating = (req, res, next) => {
       });
     });
 };
+
+// PUT /api/books/:id/rating
+exports.updateRating = (req, res, next) => {
+  if (!req.auth || !req.auth.userId) {
+    return res.status(401).json({ error: "Authentification requise" });
+  }
+  const userId = req.auth.userId;
+  const grade = req.body.rating;
+  if (typeof grade !== "number" || grade < 0 || grade > 5) {
+    return res
+      .status(400)
+      .json({ error: "La note doit être comprise entre 0 et 5" });
+  }
+  const bookId = req.params.id;
+  Book.findOne({ _id: bookId })
+    .then((book) => {
+      if (!book) {
+        return res.status(404).json({ error: "Livre non trouvé" });
+      }
+
+      const existingRating = book.ratings.find(
+        (rating) => rating.userId === userId
+      );
+      if (!existingRating) {
+        return res
+          .status(404)
+          .json({ error: "Aucune note existante pour cet utilisateur" });
+      }
+
+      existingRating.grade = grade;
+      return book.save();
+    })
+    .then((updatedBook) => {
+      res.status(200).json(updatedBook);
+    })
+    .catch((error) => {
+      res.status(400).json({
+        error: "Une erreur est survenue lors de la mise à jour de la note",
+        error,
+      });
+    });
+};
+
+// DELETE /api/books/:id/rating
+exports.deleteRating = (req, res, next) => {
+  if (!req.auth || !req.auth.userId) {
+    return res.status(401).json({ error: "Authentification requise" });
+  }
+  const userId = req.auth.userId;
+  const bookId = req.params.id;
+  Book.findOne({ _id: bookId })
+    .then((book) => {
+      if (!book) {
+        return res.status(404).json({ error: "Livre non trouvé" });
+      }
+
+      const beforeCount = book.ratings.length;
+      book.ratings = book.ratings.filter((r) => r.userId !== userId);
+      if (book.ratings.length === beforeCount) {
+        return res
+          .status(404)
+          .json({ error: "Aucune note à supprimer pour cet utilisateur" });
+      }
+
+      return book.save();
+    })
+    .then((updatedBook) => {
+      res.status(200).json(updatedBook);
+    })
+    .catch((error) => {
+      res.status(400).json({
+        error: "Une erreur est survenue lors de la suppression de la note",
+        error,
+      });
+    });
+};
