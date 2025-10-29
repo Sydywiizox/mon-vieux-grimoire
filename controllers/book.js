@@ -155,52 +155,56 @@ exports.modifyBook = async (req, res, next) => {
 };
 
 // DELETE /api/books/:id
-exports.deleteBook = (req, res, next) => {
-  if (!req.auth || !req.auth.userId) {
-    return res.status(401).json({ error: "Authentification requise" });
-  }
-  Book.findOne({ _id: req.params.id })
-    .then((book) => {
-      if (!book) {
-        return res.status(404).json({ message: "Livre non trouvé" });
-      }
-      if (book.userId != req.auth.userId) {
-        res.status(401).json({ message: "Non autorisé" });
-      } else {
-        // Supprimer l'image de Cloudinary
-        if (book.imageUrl) {
-          try {
-            // Extraire le public_id de l'URL Cloudinary
-            const urlParts = book.imageUrl.split("/upload/");
-            if (urlParts.length === 2) {
-              const publicId = urlParts[1].split(".")[0]; // Enlève l'extension
-              cloudinary.uploader.destroy(publicId, (error, result) => {
-                if (error) {
-                  console.error(
-                    "Erreur lors de la suppression de l'image Cloudinary:",
-                    error
-                  );
-                } else {
-                  console.log("Image supprimée de Cloudinary:", publicId);
-                }
-              });
-            }
-          } catch (error) {
-            console.error("Erreur lors de l'extraction du public_id:", error);
-          }
-        }
+exports.deleteBook = async (req, res, next) => {
+  try {
+    // Vérif auth
+    if (!req.auth || !req.auth.userId) {
+      return res.status(401).json({ error: "Authentification requise" });
+    }
 
-        // Supprimer le livre de la base de données
-        Book.deleteOne({ _id: req.params.id })
-          .then(() => {
-            res.status(200).json({ message: "Livre supprimé !" });
-          })
-          .catch((error) => res.status(401).json({ error }));
+    const book = await Book.findOne({ _id: req.params.id });
+    if (!book) {
+      return res.status(404).json({ message: "Livre non trouvé" });
+    }
+
+    // Vérif propriétaire
+    if (book.userId !== req.auth.userId) {
+      return res.status(403).json({ message: "Non autorisé" });
+    }
+
+    // Suppression Cloudinary si image présente
+    if (book.imageUrl) {
+      try {
+        const match = book.imageUrl.match(
+          /\/upload\/(?:v\d+\/)?(.+)\.[a-zA-Z]+$/
+        );
+        const publicId = match ? match[1] : null;
+
+        if (publicId) {
+          const result = await cloudinary.uploader.destroy(publicId);
+          if (result.result === "ok") {
+            console.log("✅ Image supprimée de Cloudinary:", publicId);
+          } else {
+            console.warn("⚠️ Image non trouvée sur Cloudinary:", publicId);
+          }
+        } else {
+          console.warn(
+            "⚠️ Impossible d'extraire le public_id depuis l'URL:",
+            book.imageUrl
+          );
+        }
+      } catch (err) {
+        console.error("Erreur lors de la suppression Cloudinary:", err);
       }
-    })
-    .catch((error) => {
-      res.status(500).json({ error });
-    });
+    }
+
+    // Suppression du livre en base
+    await Book.deleteOne({ _id: req.params.id });
+    res.status(200).json({ message: "Livre supprimé !" });
+  } catch (error) {
+    console.error("Erreur deleteBook:", error);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
 };
 
 // POST /api/books/:id/rating
