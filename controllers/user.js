@@ -17,6 +17,7 @@ exports.signup = (req, res, next) => {
         .then(() => res.status(201).json({ message: "Utilisateur créé !" }))
         .catch((error) => {
           // Gestion explicite pour les emails en double
+          console.log(error.code);
           if (error.code === 11000) {
             res.status(400).json({ error: "Email déjà utilisé !" });
           } else {
